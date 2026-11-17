@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aviso Riesgo de Corte</title>
+<style>
+  :root {
+    --bg: #f7f4f4; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+    --line: #e5e7eb; --brand: #4ba3db; --brand-dark: #2b7fb8;
+    --danger: #c0392b; --ok: #1e8449; --warn-bg: #fff8e1;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; font-size: 14px; }
+  header { background: #c0392b; color: #fff; padding: 18px 24px; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; opacity: .9; }
+  main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 60px; display: grid; gap: 18px; }
+  .card { background: var(--card); border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .card h2 { margin: 0 0 12px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .step { background: var(--brand); color: #fff; border-radius: 50%; width: 24px; height: 24px;
+          display: inline-flex; align-items: center; justify-content: center; font-size: 13px; }
+  textarea, input, select { font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; background: #fff; color: var(--text); }
+  textarea { min-height: 140px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  input[type=checkbox] { width: auto; }
+  label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 13px; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  button { font: inherit; border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer; background: var(--brand); color: #fff; font-weight: 600; }
+  button:hover { background: var(--brand-dark); }
+  button.secondary { background: #e8f2fa; color: var(--brand-dark); }
+  button.small { padding: 6px 12px; font-size: 13px; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .msg { padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+  .msg.err { background: #fdecea; color: var(--danger); }
+  .msg.ok { background: #e9f7ef; color: var(--ok); }
+  .msg.warn { background: var(--warn-bg); color: #8a6d00; }
+  .tablewrap { overflow-x: auto; }
+  table.edit { border-collapse: collapse; width: 100%; min-width: 980px; }
+  table.edit th { text-align: left; font-size: 12px; color: var(--muted); border-bottom: 2px solid var(--line); padding: 6px; }
+  table.edit td { border-bottom: 1px solid var(--line); padding: 6px; vertical-align: middle; }
+  table.edit td input { padding: 5px 7px; }
+  table.edit tr.grp td { background: #f4f8fb; font-weight: 700; color: var(--brand-dark); }
+  table.edit tr.off td { opacity: .45; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .pill.venc { background: #fdecea; color: var(--danger); }
+  .pill.vig { background: #e8f2fa; color: var(--brand-dark); }
+  .pill.pag { background: #e9f7ef; color: var(--ok); }
+  #clientList { border: 1px solid var(--line); border-radius: 8px; max-height: 300px; overflow-y: auto; margin-top: 8px; }
+  .client { display: grid; grid-template-columns: auto 1fr 200px; gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  .client:last-child { border-bottom: 0; }
+  .client .name { font-weight: 600; }
+  .client input[data-rfc] { padding: 5px 8px; }
+  @media (max-width: 600px) { .client { grid-template-columns: auto 1fr; } .client input[data-rfc] { grid-column: 2; } }
+  #preview { border: 1px dashed var(--line); border-radius: 8px; padding: 16px; background: #fff; overflow-x: auto; }
+  details summary { cursor: pointer; font-weight: 600; }
+</style>
+</head>
+<body>
+<header style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+  <div>
+    <h1>⚠️ Aviso de Riesgo de Corte — Generador para correo</h1>
+    <p>Pega la cartera desde Excel, elige el cliente y copia al correo el aviso de desactivación con sus facturas <b>vencidas</b>.</p>
+  </div>
+  <button id="btnReset" style="background:#fff;color:#c0392b">🗑️ Borrar todo</button>
+</header>
+
+<main>
+  <section class="card">
+    <h2><span class="step">1</span> Pega la cartera (desde Excel)</h2>
+    <textarea id="raw" placeholder="RAZON SOCIAL	N° DOCTO	F EMISIÓN	F VENC,	MONEDA	TOTAL	ESTADO	MONTO PAGADO	FECHA DE PAGO	BANCO"></textarea>
+    <p class="muted">Columnas reconocidas por encabezado: Razón Social, RFC, N° Docto, F Emisión, F Venc, Moneda, Total, Estado, Monto Pagado / Abono, Fecha de Pago / Abono, Saldo, Banco. Las facturas <b>CANCELADAS</b> o pagadas por completo se dejan fuera automáticamente, y <b>solo se consideran las vencidas</b> a la fecha de corte (las vigentes no aparecen). Filas sin estado se toman como <b>DEBE</b>. Si pegas sin encabezado se asume el orden: Razón Social · Docto · Emisión · Vencimiento · Moneda · Total · Estado · Monto Pagado · Fecha de Pago · Banco.</p>
+    <div class="row">
+      <button id="btnParse">Cargar datos</button>
+      <button class="secondary" id="btnSample">Usar ejemplo</button>
+      <span id="parseMsg"></span>
+    </div>
+  </section>
+
+  <section class="card" id="stepClient" hidden>
+    <h2><span class="step">2</span> Cliente(s) y fecha de corte</h2>
+    <div class="grid">
+      <div><label for="search">Buscar razón social o grupo</label><input id="search" placeholder="Ej. EULEN"></div>
+      <div><label for="corte">Fecha de corte (define qué está vencido)</label><input id="corte" type="date"></div>
+      <div><label for="desact">Fecha de desactivación del servicio</label><input id="desact" type="date"></div>
+    </div>
+    <div id="desactMsg" style="margin-top:8px"></div>
+    <div class="row">
+      <button class="secondary small" id="selVisible">Marcar las que se ven</button>
+      <button class="secondary small" id="selNone">Quitar todas</button>
+      <span class="muted" id="selCount"></span>
+    </div>
+    <div id="clientList"></div>
+    <p class="muted">Marca todas las razones sociales del mismo cliente: el correo arma una tabla por cada una. El RFC se recuerda en este navegador.</p>
+    <div style="margin-top:12px">
+      <label for="intro">Mensaje inicial del correo</label>
+      <textarea id="intro" style="min-height:90px;font-family:inherit;font-size:14px"></textarea>
+      <p class="muted">Se reemplazan solos: <code>{desactivacion}</code> = fecha de desactivación (en negrita) · <code>{fecha}</code> = fecha de corte · <code>{vencido}</code> = total vencido (en negrita).</p>
+      <label for="cierre" style="margin-top:12px">Cierre del correo (va al final, después de los datos de pago)</label>
+      <textarea id="cierre" style="min-height:50px;font-family:inherit;font-size:14px"></textarea>
+    </div>
+  </section>
+
+  <section class="card" id="stepRows" hidden>
+    <h2><span class="step">3</span> Revisa las facturas vencidas y completa los abonos</h2>
+    <p class="muted">Solo se listan las facturas vencidas a la fecha de corte. Desmarca las que no quieras incluir. En las <b>abonadas</b> indica el monto abonado y la fecha del abono: el saldo se calcula solo.</p>
+    <div class="tablewrap"><table class="edit" id="rowsTable"></table></div>
+    <div id="rowsMsg" style="margin-top:10px"></div>
+  </section>
+
+  <section class="card" id="stepPreview" hidden>
+    <h2><span class="step">4</span> Vista previa y copiar</h2>
+    <div class="row" style="margin:0 0 12px">
+      <button id="btnCopyRich">📋 Copiar para pegar en el correo</button>
+      <button class="secondary" id="btnCopyHtml">Copiar código HTML</button>
+      <span id="copyMsg"></span>
+    </div>
+    <div id="preview"></div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>⚙️ Datos de pago (editables)</summary>
+      <div class="grid" style="margin-top:12px">
+        <div><label>Beneficiario</label><input data-pay="beneficiario"></div>
+        <div><label>RFC</label><input data-pay="rfc"></div>
+        <div><label>Banco</label><input data-pay="banco"></div>
+        <div><label>Cuenta Corriente Pesos</label><input data-pay="cuentaMXN"></div>
+        <div><label>Cuenta Corriente Dólares</label><input data-pay="cuentaUSD"></div>
+        <div><label>Enviar comprobante a</label><input data-pay="email"></div>
+      </div>
+      <p class="muted">Los cambios se recuerdan en este navegador. Para cambiarlos para todo el equipo, edita <code>PAGO_DEFAULT</code> en index.html.</p>
+    </details>
+  </section>
+</main>
+
+<script>
+/* ===== Configuración: datos de pago por defecto ===== */
+const PAGO_DEFAULT = {
+  beneficiario: "CHECADOR SA",
+  rfc: "CEC2005286R4",
+  banco: "BANORTE",
+  cuentaMXN: "1161438886",
+  cuentaUSD: "1161464960",
+  email: "cobranzamx@geovictoria.com"
+};
+const COLOR = { header: "#4BA3DB", vencido: "#C0392B", vigente: "#2B7FB8", abonoBg: "#FFF8E1", line: "#E5E7EB", text: "#333333", soft: "#F4F8FB" };
+
+const SAMPLE = `RAZON SOCIAL	N° DOCTO	F EMISIÓN	F VENC,	MONEDA	 TOTAL 	ESTADO	MONTO PAGADO	FECHA DE PAGO	BANCO
+AUTOPISTA URBANA NORTE	F05570	09/07/2024	07/10/2024	MXN	 7.308,00 	DEBE
+AUTOPISTA URBANA NORTE	FV-1-1227	09/01/2025	09/04/2025	MXN	 2.784,00 	ABONADO	1.000,00	15/05/2025	BANORTE
+AUTOPISTA URBANA NORTE	FV-1-10579	01/09/2026	30/11/2026	MXN	 2.830,40 	DEBE
+AUTOPISTA URBANA NORTE	FV-1-11114	01/10/2026	30/12/2026	MXN	 3.883,68 	DEBE
+EULEN MEXICO DE SERVICIOS	FV-1-6707	09/01/2026	08/02/2026	MXN	 14.848,00 	CANCELADA	14.848,00	28/05/2026	BANORTE
+EULEN MEXICO DE SERVICIOS	FV-1-8513	30/04/2026	30/05/2026	MXN	 2.900,00 	DEBE
+EULEN MEXICO DE SERVICIOS	FV-1-11607	20/10/2026	19/11/2026	MXN	 26.368,01 	DEBE
+EULEN DE SEGURIDAD PRIVADA	FV-1-11608	20/10/2026	19/11/2026	MXN	 34.162,93 	DEBE
+EULEN MEXICO	FV-1-11609	20/10/2026	19/11/2026	MXN	 13.641,11 	DEBE
+EULEN FLEXIPLAN	FV-1-11610	20/10/2026	19/11/2026	MXN	 2.766,72 	DEBE			`;
+
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+let invoices = [];            // todas las facturas pegadas
+let clients = [];             // razones sociales [{name, n}]
+let selected = new Set();     // razones sociales marcadas
+let pago = Object.assign({}, PAGO_DEFAULT, store.get("pago", {}));
+let rfcs = store.get("rfcs", {});
+
+/* ===== Parseo ===== */
+const norm = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+
+function parseAmount(s) {
+  s = (s || "").replace(/[\s$]/g, "").replace(/[A-Za-z]/g, "");
+  if (!s) return null;
+  const neg = /^\(.*\)$/.test(s) || s.startsWith("-");
+  s = s.replace(/[()\-]/g, "");
+  const lc = s.lastIndexOf(","), ld = s.lastIndexOf(".");
+  if (lc > -1 && ld > -1) {
+    s = lc > ld ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
+  } else if (lc > -1) {
+    s = /,\d{1,2}$/.test(s) ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
+  } else if (ld > -1) {
+    if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? null : (neg ? -n : n);
+}
+
+function parseDate(s) {
+  s = (s || "").trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (m) { let y = +m[3]; if (y < 100) y += 2000; return new Date(y, +m[2] - 1, +m[1]); }
+  return null;
+}
+const fmtDate = d => d ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}` : "";
+const isoDate = d => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "";
+const fmtMoney = n => (n == null || isNaN(n)) ? "" : "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
+
+function mapHeader(cells) {
+  const map = {};
+  cells.forEach((c, i) => {
+    const h = norm(c);
+    if (!h) return;
+    const set = k => { if (map[k] === undefined) map[k] = i; };
+    if (/FECHA (DE )?(ABONO|PAGO)|F (ABONO|PAGO)/.test(h)) set("fabono");
+    else if (/VENC/.test(h)) set("venc");
+    else if (/EMISION|EMIS/.test(h)) set("emision");
+    else if (/RAZON|CLIENTE|NOMBRE/.test(h)) set("razon");
+    else if (/^RFC/.test(h)) set("rfc");
+    else if (/DOCTO|FOLIO|FACTURA|DOCUMENTO|N DOC/.test(h)) set("folio");
+    else if (/MONEDA|DIVISA/.test(h)) set("moneda");
+    else if (/SALDO|PENDIENTE/.test(h)) set("saldo");
+    else if (/ABONO|ABONADO|PAGADO/.test(h)) set("abono");
+    else if (/TOTAL|MONTO|IMPORTE/.test(h)) set("total");
+    else if (/ESTADO|STATUS|ESTATUS/.test(h)) set("estado");
+    else if (/^BANCO/.test(h)) set("banco");
+  });
+  return map;
+}
+
+function parseRaw(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.replace(/\t/g, "").trim());
+  if (!lines.length) return { rows: [], errors: ["No hay datos pegados."], omitidas: 0 };
+  const split = l => l.includes("\t") ? l.split("\t") : l.split(/;|\s{2,}/);
+  let map, start = 0;
+  const hm = mapHeader(split(lines[0]));
+  if (hm.folio !== undefined && hm.total !== undefined) { map = hm; start = 1; }
+  // Sin encabezado: orden estándar de la cartera
+  else map = { razon: 0, folio: 1, emision: 2, venc: 3, moneda: 4, total: 5, estado: 6, abono: 7, fabono: 8, banco: 9 };
+
+  const rows = [], errors = [];
+  let omitidas = 0;
+  for (let i = start; i < lines.length; i++) {
+    const c = split(lines[i]).map(x => (x || "").trim());
+    const get = k => map[k] !== undefined ? (c[map[k]] || "") : "";
+    const estado = norm(get("estado"));
+    const cancelada = /CANCEL|ANULAD|PAGAD/.test(estado);
+    const total = parseAmount(get("total"));
+    const folio = get("folio");
+    if (!folio || total == null) {
+      if (cancelada) omitidas++; else errors.push(`Fila ${i + 1} ignorada (sin folio o total).`);
+      continue;
+    }
+    let abono = parseAmount(get("abono"));
+    const saldo = parseAmount(get("saldo"));
+    if (abono == null && saldo != null && saldo < total) abono = +(total - saldo).toFixed(2);
+    const pagada = cancelada || (abono != null && abono >= total - 0.005);
+    const abonada = !pagada && (/ABON|PARCIAL/.test(estado) || (abono != null && abono > 0));
+    rows.push({
+      id: i, include: !pagada, pagada,
+      razon: (get("razon") || "(sin razón social)").replace(/\s+/g, " "),
+      rfc: get("rfc"),
+      folio, total,
+      emision: parseDate(get("emision")),
+      venc: parseDate(get("venc")),
+      moneda: (get("moneda") || "MXN").toUpperCase(),
+      estado: get("estado") || "DEBE",
+      abonada, abono: abonada ? abono : null,
+      fabono: abonada ? parseDate(get("fabono")) : null,
+      banco: get("banco")
+    });
+  }
+  return { rows, errors, omitidas };
+}
+
+/* ===== UI ===== */
+function loadData() {
+  const { rows, errors, omitidas } = parseRaw($("#raw").value);
+  invoices = rows;
+  const msg = $("#parseMsg");
+  if (!rows.length) { msg.className = "msg err"; msg.textContent = errors[0] || "No se reconocieron facturas."; return; }
+  const counts = {};
+  rows.forEach(r => { if (r.pagada || !isVencida(r)) return; counts[r.razon] = (counts[r.razon] || 0) + 1; if (r.rfc && !rfcs[r.razon]) rfcs[r.razon] = r.rfc; });
+  clients = Object.keys(counts).sort().map(name => ({ name, n: counts[name] }));
+  const pagadas = rows.filter(r => r.pagada).length;
+  const vigentes = rows.filter(r => !r.pagada && !isVencida(r)).length;
+  if (!clients.length) { msg.className = "msg warn"; msg.textContent = "No hay facturas vencidas a la fecha de corte."; return; }
+  msg.className = "msg ok";
+  msg.textContent = `${plural(rows.length - pagadas - vigentes, "factura vencida", "facturas vencidas")} · ${plural(clients.length, "razón social", "razones sociales")}` +
+    (vigentes ? ` · ${vigentes} vigentes fuera` : "") +
+    (pagadas + omitidas ? ` · ${pagadas + omitidas} canceladas/pagadas fuera` : "") +
+    (errors.length ? ` · ${errors.length} fila(s) ignoradas` : "");
+  const prev = selected;
+  selected = new Set(clients.length === 1 ? [clients[0].name] : clients.map(c => c.name).filter(n => prev.has(n)));
+  $("#search").value = "";
+  ["#stepClient", "#stepRows", "#stepPreview"].forEach(s => $(s).hidden = false);
+  renderClients(); renderRows();
+}
+
+function visibleClients() {
+  const q = norm($("#search").value);
+  return clients.filter(c => !q || norm(c.name).includes(q));
+}
+
+function renderClients() {
+  const vis = visibleClients();
+  $("#clientList").innerHTML = vis.length ? vis.map(c => `
+    <div class="client">
+      <input type="checkbox" data-client="${esc(c.name)}" ${selected.has(c.name) ? "checked" : ""}>
+      <div><span class="name">${esc(c.name)}</span> <span class="muted">· ${plural(c.n, "factura vencida", "facturas vencidas")}</span></div>
+      <input data-rfc="${esc(c.name)}" placeholder="RFC" value="${esc(rfcs[c.name] || "")}">
+    </div>`).join("") : `<div class="client"><span></span><span class="muted">Sin coincidencias.</span></div>`;
+  $("#selCount").textContent = `${plural(selected.size, "razón social marcada", "razones sociales marcadas")}`;
+}
+
+$("#clientList").addEventListener("input", e => {
+  if (e.target.dataset.client !== undefined) {
+    e.target.checked ? selected.add(e.target.dataset.client) : selected.delete(e.target.dataset.client);
+    $("#selCount").textContent = `${plural(selected.size, "razón social marcada", "razones sociales marcadas")}`;
+    renderRows();
+  } else if (e.target.dataset.rfc !== undefined) {
+    rfcs[e.target.dataset.rfc] = e.target.value.trim(); store.set("rfcs", rfcs); renderPreview();
+  }
+});
+$("#search").oninput = renderClients;
+$("#selVisible").onclick = () => { visibleClients().forEach(c => selected.add(c.name)); renderClients(); renderRows(); };
+$("#selNone").onclick = () => { selected.clear(); renderClients(); renderRows(); };
+
+function corteDate() { return parseDate($("#corte").value) || new Date(new Date().toDateString()); }
+const isVencida = r => r.venc && r.venc < corteDate();
+const byVenc = (a, b) => (a.venc || 0) - (b.venc || 0);
+function selectedRows() { return invoices.filter(r => selected.has(r.razon) && !r.pagada && isVencida(r)); }
+function groupByRazon(rows) {
+  const g = new Map();
+  rows.forEach(r => { if (!g.has(r.razon)) g.set(r.razon, []); g.get(r.razon).push(r); });
+  return [...g.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+function saldoOf(r) { return r.abonada && r.abono ? +(r.total - r.abono).toFixed(2) : r.total; }
+
+function renderRows() {
+  const t = $("#rowsTable");
+  const rows = selectedRows();
+  if (!rows.length) { t.innerHTML = `<tr><td class="muted">Marca al menos una razón social con facturas vencidas en el paso 2.</td></tr>`; $("#rowsMsg").innerHTML = ""; renderPreview(); return; }
+  let html = `<tr><th>Incluir</th><th>Factura</th><th>Emisión</th><th>Vencimiento</th><th>Moneda</th><th>Total</th><th>Situación</th><th>¿Abonada?</th><th>Monto abonado</th><th>Fecha abono</th><th>Saldo</th></tr>`;
+  groupByRazon(rows).forEach(([razon, list]) => {
+    html += `<tr class="grp"><td colspan="11">${esc(razon)}</td></tr>`;
+    list.slice().sort(byVenc).forEach(r => {
+      const sit = '<span class="pill venc">VENCIDA</span>';
+      html += `<tr data-id="${r.id}" class="${r.include ? "" : "off"}">
+        <td><input type="checkbox" data-f="include" ${r.include ? "checked" : ""}></td>
+        <td><b>${esc(r.folio)}</b></td>
+        <td>${fmtDate(r.emision)}</td>
+        <td>${fmtDate(r.venc)}</td>
+        <td>${esc(r.moneda)}</td>
+        <td>${fmtMoney(r.total)}</td>
+        <td>${sit}</td>
+        <td><input type="checkbox" data-f="abonada" ${r.abonada ? "checked" : ""}></td>
+        <td><input type="number" step="0.01" min="0" data-f="abono" value="${r.abono ?? ""}" ${r.abonada ? "" : "disabled"} placeholder="0.00"></td>
+        <td><input type="date" data-f="fabono" value="${isoDate(r.fabono)}" ${r.abonada ? "" : "disabled"}></td>
+        <td data-saldo>${fmtMoney(saldoOf(r))}</td>
+      </tr>`;
+    });
+  });
+  t.innerHTML = html;
+  validate();
+  renderPreview();
+}
+
+function validate() {
+  const issues = [];
+  selectedRows().filter(r => r.include && r.abonada).forEach(r => {
+    if (!r.abono) issues.push(`${r.folio}: falta el monto abonado.`);
+    else if (r.abono >= r.total) issues.push(`${r.folio}: el abono cubre el total — ¿quieres excluirla?`);
+    if (!r.fabono) issues.push(`${r.folio}: falta la fecha del abono.`);
+  });
+  $("#rowsMsg").innerHTML = issues.length ? `<div class="msg warn">⚠️ ${issues.map(esc).join("<br>⚠️ ")}</div>` : "";
+}
+
+$("#rowsTable").addEventListener("input", e => {
+  const tr = e.target.closest("tr[data-id]"); if (!tr) return;
+  const r = invoices.find(x => x.id == tr.dataset.id); const f = e.target.dataset.f;
+  if (f === "include") { r.include = e.target.checked; tr.classList.toggle("off", !r.include); }
+  if (f === "abonada") { r.abonada = e.target.checked; renderRows(); return; }
+  if (f === "abono") r.abono = parseFloat(e.target.value) || null;
+  if (f === "fabono") r.fabono = parseDate(e.target.value);
+  tr.querySelector("[data-saldo]").textContent = fmtMoney(saldoOf(r));
+  validate(); renderPreview();
+});
+
+/* ===== HTML del correo (estilos en línea para Outlook/Gmail) ===== */
+const FONT = "font-family:Arial,Helvetica,sans-serif;";
+const TH = `${FONT}background:${COLOR.header};color:#ffffff;font-weight:bold;padding:10px 12px;text-align:left;font-size:13px;border:1px solid ${COLOR.header};`;
+const TD = `${FONT}padding:9px 12px;border-bottom:1px solid ${COLOR.line};font-size:13px;color:${COLOR.text};vertical-align:middle;`;
+const TDR = TD + "text-align:right;white-space:nowrap;";
+
+const sumByCur = rows => rows.reduce((o, r) => (o[r.moneda] = (o[r.moneda] || 0) + saldoOf(r), o), {});
+const curText = obj => Object.entries(obj).map(([m, v]) => `${fmtMoney(v)} ${m}`).join(" + ");
+
+function buildTable(rows, tipo) {
+  const showAbono = rows.some(r => r.abonada && r.abono);
+  const corte = corteDate();
+  const color = tipo === "venc" ? COLOR.vencido : COLOR.text;
+  const cols = ["Factura", "Fecha de Emisión", "Fecha de Vencimiento"];
+  if (tipo === "venc") cols.push("Días Vencida");
+  cols.push("Moneda", "Total Factura");
+  if (showAbono) cols.push("Monto Abonado", "Fecha de Abono");
+  cols.push("Saldo Pendiente");
+
+  const head = cols.map(c => `<th style="${TH}">${c}</th>`).join("");
+  const body = rows.map(r => {
+    const ab = r.abonada && r.abono;
+    const bg = ab ? `background:${COLOR.abonoBg};` : "";
+    const dias = r.venc ? Math.round((corte - r.venc) / 86400000) : "";
+    let tds = `<td style="${TD}${bg}white-space:nowrap;"><b>${esc(r.folio)}</b>${ab ? `<br><span style="font-size:11px;color:#8a6d00;">Abono parcial</span>` : ""}</td>
+      <td style="${TD}${bg}white-space:nowrap;">${fmtDate(r.emision)}</td><td style="${TD}${bg}white-space:nowrap;">${fmtDate(r.venc)}</td>`;
+    if (tipo === "venc") tds += `<td style="${TDR}${bg}color:${COLOR.vencido};">${dias}</td>`;
+    tds += `<td style="${TD}${bg}">${esc(r.moneda)}</td><td style="${TDR}${bg}">${fmtMoney(r.total)}</td>`;
+    if (showAbono) tds += ab
+      ? `<td style="${TDR}${bg}color:#1e8449;">${fmtMoney(r.abono)}</td><td style="${TD}${bg}white-space:nowrap;">${fmtDate(r.fabono) || "—"}</td>`
+      : `<td style="${TDR}${bg}color:#999;">—</td><td style="${TD}${bg}color:#999;">—</td>`;
+    tds += `<td style="${TDR}${bg}font-weight:bold;color:${color};">${fmtMoney(saldoOf(r))}</td>`;
+    return `<tr>${tds}</tr>`;
+  }).join("");
+
+  const totalRows = Object.entries(sumByCur(rows)).map(([m, v]) =>
+    `<tr><td colspan="${cols.length - 1}" style="${TDR}font-weight:bold;background:${COLOR.soft};">Subtotal ${m}</td>
+     <td style="${TDR}font-weight:bold;background:${COLOR.soft};color:${color};">${fmtMoney(v)}</td></tr>`).join("");
+
+  return `<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;max-width:900px;${FONT}">
+    <thead><tr>${head}</tr></thead><tbody>${body}${totalRows}</tbody></table>`;
+}
+
+function buildSection(rows, tipo) {
+  const color = tipo === "venc" ? COLOR.vencido : COLOR.vigente;
+  const label = tipo === "venc" ? "⚠️ Facturas vencidas" : "📅 Facturas vigentes – por vencer";
+  let html = `<p style="margin:26px 0 4px;${FONT}font-size:16px;font-weight:bold;color:${color};">${label}: ${plural(rows.length, "factura", "facturas")} · ${curText(sumByCur(rows))}</p>`;
+  groupByRazon(rows).forEach(([razon, list]) => {
+    const rfc = rfcs[razon];
+    html += `<p style="margin:16px 0 6px;${FONT}font-size:14px;color:${COLOR.text};"><b>${esc(razon)}</b>${rfc ? ` &nbsp;·&nbsp; RFC: ${esc(rfc)}` : ""} &nbsp;·&nbsp; ${plural(list.length, "factura", "facturas")}</p>`;
+    html += buildTable(list.sort(byVenc), tipo);
+  });
+  return html;
+}
+
+function buildEmail() {
+  const rows = selectedRows().filter(r => r.include);
+  const venc = rows;
+  const P = `margin:0 0 12px;${FONT}font-size:14px;color:${COLOR.text};line-height:1.5;`;
+  let html = `<div style="${FONT}color:${COLOR.text};">`;
+  const intro = $("#intro").value.trim();
+  const totDeuda = curText(sumByCur(rows)) || "$0.00";
+  const totVencido = curText(sumByCur(venc)) || "$0.00";
+  if (intro) html += intro.split(/\n\s*\n/).map(p => `<p style="${P}">${esc(p)
+    .replace(/\{fecha\}/g, fmtDate(corteDate()))
+    .replace(/\{desactivacion\}/g, `<b>${fmtDate(desactDate()) || "__/__/____"}</b>`)
+    .replace(/\{total\}/g, totDeuda)
+    .replace(/\{vencido\}/g, `<b>${totVencido}</b>`)
+    .replace(/\n/g, "<br>")}</p>`).join("");
+
+  if (venc.length) html += buildSection(venc, "venc");
+  if (!rows.length) html += `<p style="${P}"><i>No hay facturas vencidas seleccionadas.</i></p>`;
+
+  if (rows.some(r => r.abonada && r.abono))
+    html += `<p style="margin:10px 0 0;font-size:12px;color:#8a6d00;${FONT}">Las filas resaltadas corresponden a facturas con abono parcial: se indica el monto abonado, la fecha del abono y el saldo que aún queda pendiente.</p>`;
+
+  // Resumen por razón social (solo si hay más de una factura)
+  if (rows.length > 1) {
+    const lines = [];
+    groupByRazon(rows).forEach(([razon, list]) => {
+      [...new Set(list.map(r => r.moneda))].forEach(m => {
+        const l = list.filter(r => r.moneda === m);
+        const v = l.reduce((s, r) => s + saldoOf(r), 0);
+        lines.push({ razon, m, v, n: l.length });
+      });
+    });
+    const curs = [...new Set(lines.map(l => l.m))];
+    html += `<p style="margin:26px 0 8px;${FONT}font-size:16px;font-weight:bold;color:${COLOR.text};">Resumen de saldo vencido</p>
+      <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;${FONT}max-width:900px;width:100%;">
+        <tr><th style="${TH}">Razón Social</th><th style="${TH}">Moneda</th><th style="${TH}text-align:right;">Facturas</th><th style="${TH}text-align:right;">Total vencido</th></tr>` +
+      lines.map(l => `<tr><td style="${TD}">${esc(l.razon)}</td><td style="${TD}">${l.m}</td>
+        <td style="${TDR}">${l.n}</td><td style="${TDR}font-weight:bold;color:${COLOR.vencido};">${fmtMoney(l.v)}</td></tr>`).join("") +
+      (lines.length > 1 ? curs.map(m => {
+        const ls = lines.filter(l => l.m === m), v = ls.reduce((s, l) => s + l.v, 0), n = ls.reduce((s, l) => s + l.n, 0);
+        const B = `font-weight:bold;background:${COLOR.soft};`;
+        return `<tr><td style="${TD}${B}">Total general</td><td style="${TD}${B}">${m}</td><td style="${TDR}${B}">${n}</td><td style="${TDR}${B}color:${COLOR.vencido};">${fmtMoney(v)}</td></tr>`;
+      }).join("") : "") + `</table>`;
+  }
+
+  const LI = `margin:0 0 4px;${FONT}font-size:14px;color:${COLOR.text};`;
+  html += `<p style="margin:24px 0 8px;${FONT}font-size:15px;font-weight:bold;color:${COLOR.text};">📌 Datos de pago:</p>
+    <ul style="margin:0 0 16px;padding-left:22px;">
+      <li style="${LI}">Beneficiario: ${esc(pago.beneficiario)}</li>
+      <li style="${LI}">RFC: ${esc(pago.rfc)}</li>
+      <li style="${LI}">Banco: ${esc(pago.banco)}</li>
+      <li style="${LI}">Cuenta Corriente Pesos: ${esc(pago.cuentaMXN)}</li>
+      <li style="${LI}">Cuenta Corriente Dólares: ${esc(pago.cuentaUSD)}</li>
+      <li style="${LI}">Enviar comprobante a: <a href="mailto:${esc(pago.email)}" style="color:${COLOR.header};">${esc(pago.email)}</a></li>
+    </ul>
+    <p style="margin:0 0 4px;${FONT}font-size:14px;font-weight:bold;color:${COLOR.text};">Importante</p>
+    <p style="${P}">Al realizar la transferencia, indica en el comentario o referencia el número de la factura que estás pagando.</p>`;
+  const cierre = $("#cierre").value.trim();
+  if (cierre) html += cierre.split(/\n\s*\n/).map(p => `<p style="${P}">${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
+  html += `</div>`;
+  return html;
+}
+
+function renderPreview() { $("#preview").innerHTML = buildEmail(); }
+
+/* ===== Copiar ===== */
+function flash(text, ok = true) { const m = $("#copyMsg"); m.className = "msg " + (ok ? "ok" : "err"); m.textContent = text; setTimeout(() => { m.textContent = ""; m.className = ""; }, 3000); }
+
+$("#btnCopyRich").onclick = async () => {
+  const html = buildEmail();
+  try {
+    await navigator.clipboard.write([new ClipboardItem({
+      "text/html": new Blob([html], { type: "text/html" }),
+      "text/plain": new Blob([$("#preview").innerText], { type: "text/plain" })
+    })]);
+    flash("Copiado ✓ Pégalo directo en el cuerpo del correo (Ctrl/Cmd + V).");
+  } catch {
+    const range = document.createRange(); range.selectNodeContents($("#preview"));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    const ok = document.execCommand("copy"); sel.removeAllRanges();
+    flash(ok ? "Copiado ✓ Pégalo en el correo." : "No se pudo copiar automáticamente: selecciona la vista previa y copia.", ok);
+  }
+};
+$("#btnCopyHtml").onclick = async () => {
+  try { await navigator.clipboard.writeText(buildEmail()); flash("Código HTML copiado ✓"); }
+  catch { flash("No se pudo copiar el código.", false); }
+};
+
+/* ===== Eventos ===== */
+$("#btnParse").onclick = loadData;
+$("#btnSample").onclick = () => { $("#raw").value = SAMPLE; loadData(); };
+$("#btnReset").onclick = () => {
+  if (invoices.length && !confirm("¿Borrar todo y empezar de nuevo?")) return;
+  invoices = []; clients = []; selected.clear();
+  $("#raw").value = ""; $("#search").value = "";
+  $("#parseMsg").textContent = ""; $("#parseMsg").className = "";
+  $("#clientList").innerHTML = ""; $("#rowsTable").innerHTML = ""; $("#rowsMsg").innerHTML = ""; $("#preview").innerHTML = "";
+  ["#stepClient", "#stepRows", "#stepPreview"].forEach(s => $(s).hidden = true);
+  $("#corte").value = isoDate(new Date());
+  delete $("#intro").dataset.edited; updateIntro();
+  $("#cierre").value = CIERRE_DEFAULT; checkDesact();
+  window.scrollTo(0, 0); $("#raw").focus();
+};
+$("#corte").oninput = () => { updateIntro(); if ($("#raw").value.trim()) loadData(); };
+$("#desact").oninput = () => { store.set("desact", $("#desact").value); checkDesact(); renderPreview(); };
+$("#cierre").oninput = renderPreview;
+function desactDate() { return parseDate($("#desact").value); }
+function checkDesact() {
+  const d = desactDate(), m = $("#desactMsg");
+  m.innerHTML = !d ? `<div class="msg warn">⚠️ Indica la fecha de desactivación del servicio.</div>`
+    : d < new Date(new Date().toDateString()) ? `<div class="msg warn">⚠️ La fecha de desactivación (${fmtDate(d)}) ya pasó. Revisa que sea correcta.</div>` : "";
+}
+$("#intro").oninput = () => { $("#intro").dataset.edited = "1"; renderPreview(); };
+
+function updateIntro() {
+  if ($("#intro").dataset.edited) return;
+  $("#intro").value = `Estimado cliente, le comento que con fecha {desactivacion} se desactivará el servicio por no pago.\n\nEn el archivo adjunto encontrará la totalidad de las facturas en estado de vencidas para su conocimiento.\n\nSi ya se efectuó el pago, favor adjuntar comprobante para realizar la corrección; si el pago fue realizado hace menos de 48 horas, debemos esperar el proceso de conciliación bancaria antes de confirmar su recepción.`;
+}
+
+document.querySelectorAll("[data-pay]").forEach(inp => {
+  inp.value = pago[inp.dataset.pay] || "";
+  inp.oninput = () => { pago[inp.dataset.pay] = inp.value; store.set("pago", pago); if (invoices.length) renderPreview(); };
+});
+
+const CIERRE_DEFAULT = "Quedo atenta.";
+$("#corte").value = isoDate(new Date());
+$("#desact").value = store.get("desact", "2026-11-05");
+$("#cierre").value = CIERRE_DEFAULT;
+updateIntro(); checkDesact();
+</script>
+</body>
+</html>
